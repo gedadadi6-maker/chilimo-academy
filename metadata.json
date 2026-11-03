@@ -1,0 +1,6 @@
+{
+  "name": "Pharaohs Experimental School Portal",
+  "description": "Mana Barumsaa fi Buufata Galmee Barattootaa, Barsiisotaa fi Maatii - Multilingual School Portal & Admission System.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
