@@ -77,6 +77,7 @@ import {
   approveBillPaymentByAdmin,
   rejectBillPaymentByAdmin
 } from '../data/mockData';
+import { FinanceAuditDashboard } from './FinanceAuditDashboard';
 
 interface AdminDashboardProps {
   currentLang: Language;
@@ -239,6 +240,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setFinDesc('');
     setFinAmount('1500');
     showToast(`Galmeen Faayinaansii (${finType.toUpperCase()}) Galmaa'eera!`);
+  };
+
+  const handleAddAuditTransaction = (newTxData: Omit<FinanceTransaction, 'id'>) => {
+    const fullTx: FinanceTransaction = {
+      ...newTxData,
+      id: `FIN-${Date.now().toString().slice(-6)}`
+    };
+    const updated = [fullTx, ...financeTransactions];
+    setFinanceTransactions(updated);
+    saveAllFinanceTransactions(updated);
+  };
+
+  const handleUpdateAuditStatus = (id: string, auditStatus: 'verified' | 'pending_audit' | 'flagged') => {
+    const updated = financeTransactions.map(t => 
+      t.id === id ? { ...t, auditStatus, auditedBy: `Finance Auditor (${currentAdmin.name})` } : t
+    );
+    setFinanceTransactions(updated);
+    saveAllFinanceTransactions(updated);
+    showToast(`Haalli Ooditii (${id}) jijjiirameera: ${auditStatus.toUpperCase()}`);
   };
 
   const handleAddPeriodSubmit = (e: React.FormEvent) => {
@@ -811,302 +831,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         )}
 
-        {/* --- CORE TAB 2: KUTAA FAAYINAANSII (FINANCE & EXCEL SHEET GENERATOR) --- */}
+        {/* --- CORE TAB 2: KUTAA FAAYINAANSII (FINANCE & SCHOOL AUDITING DASHBOARD) --- */}
         {activeTab === 'finance_department' && (
-          <div className="space-y-6">
-            
-            {/* Top Financial Overview Cards */}
-            {(() => {
-              const totalIncome = financeTransactions.filter(f => f.type === 'income').reduce((sum, f) => sum + f.amount, 0);
-              const totalExpense = financeTransactions.filter(f => f.type === 'expense').reduce((sum, f) => sum + f.amount, 0);
-              const netBalance = totalIncome - totalExpense;
-
-              return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* Total Income */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Waliigala Galii (Total Income)</span>
-                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
-                        <TrendingUp className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-2xl font-black font-mono text-emerald-700">
-                      {totalIncome.toLocaleString()} ETB
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Tuition, Bus fees, Registration</span>
-                  </div>
-
-                  {/* Total Expenses */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Waliigala Baasii (Total Expenses)</span>
-                      <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-800 flex items-center justify-center">
-                        <TrendingDown className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-2xl font-black font-mono text-rose-700">
-                      {totalExpense.toLocaleString()} ETB
-                    </div>
-                    <span className="text-[10px] text-slate-400 mt-1 block">Salaries, Fuel, Laboratory & Books</span>
-                  </div>
-
-                  {/* Net Balance */}
-                  <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Haftee Qulqulluu (Net Balance)</span>
-                      <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
-                        <DollarSign className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className={`text-2xl font-black font-mono ${netBalance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
-                      {netBalance.toLocaleString()} ETB
-                    </div>
-                    <span className="text-[10px] text-emerald-600 font-bold mt-1 block">Surplus • Chilimo Accounts</span>
-                  </div>
-
-                  {/* Excel Download Action */}
-                  <div className="bg-gradient-to-br from-[#0f1e36] to-[#1a3156] rounded-2xl p-5 shadow-sm text-white flex flex-col justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase tracking-wider text-amber-400 font-bold block">
-                        Excel Spreadsheet Generator
-                      </span>
-                      <h4 className="font-serif text-base font-bold text-white mt-0.5">
-                        Kutaa Faayinaansii Excel
-                      </h4>
-                    </div>
-
-                    <button
-                      onClick={handleDownloadExcel}
-                      className="mt-3 w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Download Excel Sheet (.CSV)</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Finance Management & Add Transaction Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
-              {/* Form: Add Income or Expense */}
-              <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-                  <Plus className="w-5 h-5 text-amber-600" />
-                  <h4 className="font-serif text-base font-bold text-[#0f1e36]">
-                    Galii / Baasii Haaraa Galchi
-                  </h4>
-                </div>
-
-                <form onSubmit={handleAddFinanceTxn} className="space-y-4">
-                  {/* Type Selector */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Gosa Galmee (Type)</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setFinType('income')}
-                        className={`py-2 rounded-lg text-xs font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
-                          finType === 'income' 
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' 
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        <span>Galii (Income)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setFinType('expense')}
-                        className={`py-2 rounded-lg text-xs font-bold border transition-colors cursor-pointer flex items-center justify-center gap-1.5 ${
-                          finType === 'expense' 
-                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs' 
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        <TrendingDown className="w-3.5 h-3.5" />
-                        <span>Baasii (Expense)</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Ramaddii (Category)</label>
-                    <select
-                      value={finCategory}
-                      onChange={(e) => setFinCategory(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-hidden"
-                    >
-                      {finType === 'income' ? (
-                        <>
-                          <option value="Tuition & Academic Fees">Kaffaltii Barumsaa (Tuition)</option>
-                          <option value="School Bus Transport">Geejjiba Baasii (Bus Transport)</option>
-                          <option value="Admission & Registration">Galmee Haaraa (Registration)</option>
-                          <option value="Uniform & Books">Uffata & Kitaaba (Uniform & Books)</option>
-                          <option value="Donation & Sponsorship">Deeggarsa (Donations)</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="Staff Salaries & Wages">Mindaa Barsiisotaa & Hojjattootaa</option>
-                          <option value="Bus Fuel & Maintenance">Boba'aa Baasii & Suphaa</option>
-                          <option value="Laboratory & Textbooks">Meeshaalee Laabii & Kitaabota</option>
-                          <option value="Campus Utilities & Rent">Ibsaa, Bishaan & Kiraa</option>
-                          <option value="Exam & Printing Services">Qormaata & Maxxansa</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Hamma Maallaqaa (ETB)</label>
-                    <input
-                      type="number"
-                      required
-                      value={finAmount}
-                      onChange={(e) => setFinAmount(e.target.value)}
-                      placeholder="e.g. 5000"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-hidden"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Nama / ID Barataa (Payee/Student)</label>
-                    <input
-                      type="text"
-                      value={finPayee}
-                      onChange={(e) => setFinPayee(e.target.value)}
-                      placeholder="e.g. Student ID: 151 or Obbo Dawit"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-hidden"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Ibsa Gabaabaa (Description)</label>
-                    <textarea
-                      rows={2}
-                      value={finDesc}
-                      onChange={(e) => setFinDesc(e.target.value)}
-                      placeholder="Ibsa kaffaltii ykn baasii galchaa..."
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-hidden"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 bg-[#0f1e36] hover:bg-[#1a3156] text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Save className="w-4 h-4 text-amber-400" />
-                    <span>Galmee Faayinaansii Galchi</span>
-                  </button>
-                </form>
-              </div>
-
-              {/* Interactive Excel Sheet Grid */}
-              <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs flex flex-col">
-                <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap justify-between items-center gap-3 bg-slate-50">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
-                    <h4 className="font-serif text-base font-bold text-[#0f1e36]">
-                      Galmee Faayinaansii (Interactive Ledger Grid)
-                    </h4>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Filter buttons */}
-                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs">
-                      <button
-                        onClick={() => setFinanceFilter('all')}
-                        className={`px-2.5 py-1 rounded font-bold transition-colors cursor-pointer ${
-                          financeFilter === 'all' ? 'bg-[#0f1e36] text-white' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Hunda ({financeTransactions.length})
-                      </button>
-                      <button
-                        onClick={() => setFinanceFilter('income')}
-                        className={`px-2.5 py-1 rounded font-bold transition-colors cursor-pointer ${
-                          financeFilter === 'income' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Galii
-                      </button>
-                      <button
-                        onClick={() => setFinanceFilter('expense')}
-                        className={`px-2.5 py-1 rounded font-bold transition-colors cursor-pointer ${
-                          financeFilter === 'expense' ? 'bg-rose-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                      >
-                        Baasii
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={handleDownloadExcel}
-                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-                      title="Download as CSV for Microsoft Excel"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Export Excel</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100 text-slate-700 uppercase text-[11px] font-bold border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 px-4">Guyyaa</th>
-                        <th className="py-3 px-4">Lakk. Galmee</th>
-                        <th className="py-3 px-4">Gosa</th>
-                        <th className="py-3 px-4">Ramaddii</th>
-                        <th className="py-3 px-4">Ibsa & Barataa</th>
-                        <th className="py-3 px-4 text-right">Hamma (ETB)</th>
-                        <th className="py-3 px-4 text-center">Mirkaneessa</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                      {financeTransactions
-                        .filter(f => financeFilter === 'all' || f.type === financeFilter)
-                        .map(f => (
-                          <tr key={f.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{f.date}</td>
-                            <td className="py-3 px-4 text-slate-400">{f.id}</td>
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                f.type === 'income' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                              }`}>
-                                {f.type === 'income' ? '+ Galii' : '- Baasii'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-slate-800 font-sans font-medium whitespace-nowrap">{f.category}</td>
-                            <td className="py-3 px-4 font-sans text-slate-700">
-                              <span className="font-semibold block">{f.description}</span>
-                              {f.studentId && (
-                                <span className="text-[10px] text-amber-700 font-mono">{f.studentId}</span>
-                              )}
-                            </td>
-                            <td className={`py-3 px-4 text-right font-bold text-sm whitespace-nowrap ${
-                              f.type === 'income' ? 'text-emerald-700' : 'text-rose-700'
-                            }`}>
-                              {f.type === 'income' ? '+' : '-'}{f.amount.toLocaleString()} ETB
-                            </td>
-                            <td className="py-3 px-4 text-center whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
-                                ✓ Admin {f.recordedBy.split(' ')[0]}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
-          </div>
+          <FinanceAuditDashboard
+            currentLang={currentLang}
+            currentAdmin={currentAdmin}
+            transactions={financeTransactions}
+            onAddTransaction={handleAddAuditTransaction}
+            onUpdateTransactionStatus={handleUpdateAuditStatus}
+          />
         )}
 
         {/* --- CORE TAB 3: WAYITII / PIRIYOODII DAREE (TIMETABLE GENERATOR) --- */}

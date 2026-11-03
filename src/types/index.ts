@@ -108,8 +108,12 @@ export interface FinanceTransaction {
   paymentMethod?: 'Telebirr' | 'CBE' | 'Cash' | 'Bank Transfer' | string;
   studentId?: string;
   receiptRef?: string;
+  voucherRef?: string;
   recordedBy: string;
   status: 'approved' | 'pending';
+  auditStatus?: 'verified' | 'pending_audit' | 'flagged';
+  auditedBy?: string;
+  auditNotes?: string;
 }
 
 export interface ClassPeriodSchedule {
