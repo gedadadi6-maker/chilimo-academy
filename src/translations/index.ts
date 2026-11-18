@@ -43,12 +43,8 @@ export const translations = {
     loginIdLabel: "Lakkoofsa Eenyummaa (User ID)",
     loginPassLabel: "Jecha Icciitii (Password)",
     loginBtn: "Seeni",
-    loginDemoTitle: "Koodiiwwan Seensaa Yaalii (System Credentials):",
-    loginDemoAdmin: "Admin (ID: 1 / PW: 123)",
-    loginDemoTeacher: "Teacher (ID: 153 / PW: 123)",
-    loginDemoStudent: "Student (ID: 151 / PW: 123)",
-    loginDemoParent: "Parent (ID: 163 / PW: 123)",
-    loginError: "Lakkoofsi ID ykn jechi icciitii dogoggora! Mee lakk. ID: 1, 153, 151, ykn 163 fayyadamaa.",
+    loginDemoTitle: "Tajaajila Poortaalii (School Portals):",
+    loginError: "Lakkoofsi ID ykn jechi icciitii dogoggora! Mee lakk. ID fi jecha icciitii keessan sirriitti galchaa.",
 
     // Guest Portal
     guestTitle: "Tajaajila Keessummaa (Guest)",
@@ -152,15 +148,11 @@ export const translations = {
     // Auth & Credentials
     loginTitle: "School Management System Login",
     loginSub: "Sign in with your system User ID and Password.",
-    loginIdLabel: "User ID (e.g. 1, 153, 151, 163)",
-    loginPassLabel: "Password (Default: 123)",
+    loginIdLabel: "User ID",
+    loginPassLabel: "Password",
     loginBtn: "Sign In",
-    loginDemoTitle: "System Credentials (Click for 1-Tap Fill):",
-    loginDemoAdmin: "Admin (id: 1 / pass: 123)",
-    loginDemoTeacher: "Teacher (id: 153 / pass: 123)",
-    loginDemoStudent: "Student (id: 151 / pass: 123)",
-    loginDemoParent: "Parent (id: 163 / pass: 123)",
-    loginError: "Invalid ID or Password! Please use ID: 1, 153, 151, or 163 with password: 123.",
+    loginDemoTitle: "Authorized Campus Portal Access",
+    loginError: "Invalid ID or Password! Please verify your credentials and try again.",
 
     // Guest Portal
     guestTitle: "Guest Services",
@@ -267,12 +259,8 @@ export const translations = {
     loginIdLabel: "የተጠቃሚ መለያ (User ID)",
     loginPassLabel: "የይለፍ ቃል (Password)",
     loginBtn: "ግባ",
-    loginDemoTitle: "የስርዓቱ የመግቢያ መረጃዎች (Credentials)፦",
-    loginDemoAdmin: "Admin (ID: 1 / PW: 123)",
-    loginDemoTeacher: "Teacher (ID: 153 / PW: 123)",
-    loginDemoStudent: "Student (ID: 151 / PW: 123)",
-    loginDemoParent: "Parent (ID: 163 / PW: 123)",
-    loginError: "የተሳሳተ መለያ ቁጥር ወይም የይለፍ ቃል! እባክዎ መለያ፦ 1፣ 153፣ 151፣ ወይም 163 ይጠቀሙ።",
+    loginDemoTitle: "የትምህርት ቤቱ ፖርታል መግቢያ",
+    loginError: "የተሳሳተ መለያ ቁጥር ወይም የይለፍ ቃል! እባክዎ ትክክለኛ መረጃዎን ያስገቡ።",
 
     // Guest Portal
     guestTitle: "የእንግዳ አገልግሎቶች",
@@ -336,3 +324,15 @@ export const translations = {
     backToHome: "ወደ ዋና ገጽ ተመለስ"
   }
 };
+
+export function pickLang(
+  lang: 'om' | 'en' | 'am',
+  om: string,
+  en: string,
+  am?: string
+): string {
+  if (lang === 'om') return om;
+  if (lang === 'am') return am || en;
+  return en;
+}
+

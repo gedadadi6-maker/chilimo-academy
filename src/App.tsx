@@ -11,14 +11,68 @@ import { TeacherPortalView } from './components/TeacherPortalView';
 import { StudentPortalView } from './components/StudentPortalView';
 import { ParentPortalView } from './components/ParentPortalView';
 import { AboutSection } from './components/AboutSection';
+import { HeritageTributeSection } from './components/HeritageTributeSection';
+import { PublicNoticeBoardSection } from './components/PublicNoticeBoardSection';
 import { Footer } from './components/Footer';
-import { getActiveSession, setActiveSession } from './data/mockData';
+import { KgLearningHub } from './components/KgLearningHub';
+import { Campus3DTourModal } from './components/Campus3DTourModal';
+import { DigitalEBookReaderModal } from './components/DigitalEBookReaderModal';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './lib/firebase';
+import { getActiveSession, setActiveSession, canUserAccessPortal } from './data/mockData';
+import { scheduleAutoCloudSync, setCloudSyncToken, syncPublicFromCloudOnBoot, pullErpFromCloud } from './lib/backupAndSync';
+import { LiveNotificationToast } from './components/NotificationCenter';
+import { OfflineIndicator } from './components/PWAInstallControls';
 
 export default function App() {
   const [currentLang, setCurrentLang] = useState<Language>('om'); // Afaan Oromoo default as requested
   const [activeView, setActiveView] = useState<AppView>('home');
   const [targetStatusCode, setTargetStatusCode] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => getActiveSession());
+  const [firebaseIdToken, setFirebaseIdToken] = useState<string | null>(null);
+  const [showGlobalTour3D, setShowGlobalTour3D] = useState<boolean>(false);
+  const [showGlobalEBook, setShowGlobalEBook] = useState<boolean>(false);
+
+  useEffect(() => {
+    setCloudSyncToken(firebaseIdToken);
+  }, [firebaseIdToken]);
+
+  useEffect(() => {
+    const handleDataUpdated = () => {
+      scheduleAutoCloudSync(1500);
+      if (currentUser && !canUserAccessPortal(currentUser).allowed) {
+        setActiveSession(null);
+        setCurrentUser(null);
+        setActiveView('login');
+      }
+    };
+    window.addEventListener('chilimo:data-updated', handleDataUpdated);
+    return () => window.removeEventListener('chilimo:data-updated', handleDataUpdated);
+  }, [currentUser]);
+
+  useEffect(() => {
+    syncPublicFromCloudOnBoot();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          const token = await fbUser.getIdToken();
+          setFirebaseIdToken(token);
+          const pulled = await pullErpFromCloud(token).catch(() => ({ restoredModules: 0 }));
+          if (pulled.restoredModules > 0) {
+            window.dispatchEvent(new Event('chilimo:data-updated'));
+          }
+        } catch {
+          setFirebaseIdToken(null);
+        }
+      } else {
+        setFirebaseIdToken(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -56,6 +110,8 @@ export default function App() {
   const handleLogout = () => {
     setActiveSession(null);
     setCurrentUser(null);
+    setFirebaseIdToken(null);
+    signOut(auth).catch(() => {});
     setActiveView('home');
   };
 
@@ -67,8 +123,11 @@ export default function App() {
         onLanguageChange={setCurrentLang}
         activeView={activeView}
         onNavigate={handleNavigate}
+        onQuickTrack={handleQuickTrack}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onOpenTour3D={() => setShowGlobalTour3D(true)}
+        onOpenEBook={() => setShowGlobalEBook(true)}
       />
 
       {/* Main View Router */}
@@ -84,7 +143,15 @@ export default function App() {
               currentLang={currentLang}
               onNavigate={handleNavigate}
             />
+            <HeritageTributeSection
+              currentLang={currentLang}
+              onNavigate={handleNavigate}
+            />
             <AboutSection
+              currentLang={currentLang}
+              onNavigate={handleNavigate}
+            />
+            <PublicNoticeBoardSection
               currentLang={currentLang}
               onNavigate={handleNavigate}
             />
@@ -112,6 +179,7 @@ export default function App() {
             currentLang={currentLang}
             onBack={() => setActiveView('home')}
             onSuccess={handleLoginSuccess}
+            onFirebaseToken={setFirebaseIdToken}
           />
         )}
 
@@ -119,6 +187,8 @@ export default function App() {
           <AdminDashboard
             currentLang={currentLang}
             currentAdmin={currentUser}
+            firebaseIdToken={firebaseIdToken}
+            onFirebaseToken={setFirebaseIdToken}
             onLogout={handleLogout}
             onBackToHome={() => setActiveView('home')}
           />
@@ -152,9 +222,22 @@ export default function App() {
         )}
 
         {activeView === 'about' && (
-          <AboutSection
+          <>
+            <AboutSection
+              currentLang={currentLang}
+              onNavigate={handleNavigate}
+            />
+            <HeritageTributeSection
+              currentLang={currentLang}
+              onNavigate={handleNavigate}
+            />
+          </>
+        )}
+
+        {activeView === 'kg_hub' && (
+          <KgLearningHub
             currentLang={currentLang}
-            onNavigate={handleNavigate}
+            onBack={() => setActiveView('home')}
           />
         )}
       </main>
@@ -164,6 +247,27 @@ export default function App() {
         currentLang={currentLang}
         onNavigate={handleNavigate}
       />
+
+      {/* Global 3D Virtual Campus Tour Modal */}
+      {showGlobalTour3D && (
+        <Campus3DTourModal onClose={() => setShowGlobalTour3D(false)} />
+      )}
+
+      {/* Global Digital E-Books Reader Modal */}
+      {showGlobalEBook && (
+        <DigitalEBookReaderModal onClose={() => setShowGlobalEBook(false)} />
+      )}
+
+      {/* Live Admission & Notice Board Notification Toast */}
+      <LiveNotificationToast
+        currentLang={currentLang}
+        currentUser={currentUser}
+        onNavigate={handleNavigate}
+        onTrackApplication={handleQuickTrack}
+      />
+
+      {/* PWA Offline Connectivity Indicator */}
+      <OfflineIndicator currentLang={currentLang} />
     </div>
   );
 }

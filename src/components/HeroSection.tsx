@@ -1,20 +1,13 @@
-import React, { useState } from 'react';
-import { 
-  ArrowRight, 
-  Search, 
-  Sparkles, 
-  Award, 
-  Users, 
-  Bus, 
-  GraduationCap, 
-  MapPin, 
-  Phone, 
-  Mail,
-  Lock
+import React, { useState, useEffect } from 'react';
+import {
+  ArrowRight,
+  Lock,
+  Building2
 } from 'lucide-react';
 import { Language, AppView } from '../types';
-import { translations } from '../translations';
-import { CHILIMO_INFO } from '../data/mockData';
+import { translations, pickLang } from '../translations';
+import { CHILIMO_INFO, getStoredSchoolPhotos, getSchoolLogoUrl } from '../data/mockData';
+import heroCampusImg from '../assets/images/chilimo_hero_campus_1794896696148.jpg';
 
 interface HeroSectionProps {
   currentLang: Language;
@@ -29,6 +22,27 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 }) => {
   const t = translations[currentLang];
   const [quickCode, setQuickCode] = useState('');
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const pickHeroPhoto = () => {
+    const customHero = getStoredSchoolPhotos().find(
+      p => p.placement === 'hero_banner' && p.featured && p.imageDataUrl
+    );
+    return customHero?.imageDataUrl || heroCampusImg;
+  };
+
+  const [heroImgSrc, setHeroImgSrc] = useState<string>(pickHeroPhoto);
+  const [logoUrl, setLogoUrl] = useState<string>(getSchoolLogoUrl);
+
+  useEffect(() => {
+    const syncHeroPhoto = () => {
+      setHeroImgSrc(pickHeroPhoto());
+      setLogoUrl(getSchoolLogoUrl());
+      setImgFailed(false);
+    };
+    window.addEventListener('chilimo:data-updated', syncHeroPhoto);
+    return () => window.removeEventListener('chilimo:data-updated', syncHeroPhoto);
+  }, []);
 
   const handleQuickSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,173 +54,165 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-b from-[#0a1526] via-[#0f1e36] to-[#0f1e36] text-white">
-      {/* Background pattern */}
-      <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:24px_24px]"></div>
+    <section className="relative bg-[#0b172a] text-white overflow-hidden border-b border-slate-800">
+      {/* Full-bleed Architectural Campus Photography with Directional Contrast Scrim */}
+      <div className="relative min-h-[580px] lg:min-h-[640px] flex items-center">
+        {!imgFailed ? (
+          <img
+            src={heroImgSrc}
+            alt="Chilimo Academy Burayu Highland Campus"
+            referrerPolicy="no-referrer"
+            onError={() => setImgFailed(true)}
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0b172a] via-[#13294b] to-[#0b172a] flex items-center justify-center opacity-40">
+            <Building2 className="w-32 h-32 text-slate-600" />
+          </div>
+        )}
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-16 sm:pt-16 sm:pb-24">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-          
-          {/* Main Hero Content */}
-          <div className="lg:col-span-7 space-y-6">
-            
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-bold rounded-full">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>{t.heroBadge}</span>
-            </div>
+        {/* Measured Contrast Scrim */}
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-[#071120]/95 via-[#0b172a]/85 to-[#0b172a]/35"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute inset-0 bg-gradient-to-t from-[#071120] via-transparent to-[#071120]/40"
+          aria-hidden="true"
+        />
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-amber-400 font-bold uppercase tracking-widest text-xs">
+        <div className="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-6 py-16 lg:py-20">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            {/* Left Dominant Editorial Column */}
+            <div className="lg:col-span-8 space-y-6 max-w-3xl">
+              {/* Quiet Unboxed Institutional Metadata */}
+              <div className="flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide text-amber-300">
                 <span>{CHILIMO_INFO.location}</span>
-                <span>•</span>
+                <span aria-hidden="true" className="text-slate-400">·</span>
                 <span>{CHILIMO_INFO.grades}</span>
+                <span aria-hidden="true" className="text-slate-400">·</span>
+                <span>{t.heroBadge}</span>
               </div>
-              <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
-                {CHILIMO_INFO.name}
-              </h1>
-              <p className="font-serif italic text-lg sm:text-xl text-amber-300 font-semibold">
-                "{CHILIMO_INFO.motto}"
+
+              <div className="space-y-3">
+                <h1 className="font-serif font-bold tracking-tight text-white leading-[1.08] text-[clamp(2.25rem,4.2vw,3.75rem)]">
+                  {t.heroHeading}
+                </h1>
+                <p className="font-serif italic text-lg sm:text-xl text-amber-300/95">
+                  "{CHILIMO_INFO.motto}"
+                </p>
+              </div>
+
+              <p className="text-slate-200 text-base sm:text-lg max-w-2xl leading-relaxed font-normal">
+                {t.heroDesc}
               </p>
-            </div>
 
-            <p className="text-slate-300 text-sm sm:text-base max-w-2xl font-light leading-relaxed">
-              {t.heroDesc}
-            </p>
-
-            {/* Guest Actions (SRS Guest Features) */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={() => onNavigate('register_admission')}
-                className="px-6 py-3 bg-amber-500 hover:bg-amber-400 text-[#0f1e36] font-black text-sm rounded-lg shadow-md hover:shadow-amber-500/30 transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <span>{t.heroCtaApply}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
-
-              <button
-                onClick={() => onNavigate('status_check')}
-                className="px-5 py-3 bg-[#172c4e] hover:bg-[#203c6b] border border-slate-700 text-white font-semibold text-sm rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
-              >
-                <Search className="w-4 h-4 text-amber-400" />
-                <span>{t.heroCtaStatus}</span>
-              </button>
-
-              <button
-                onClick={() => onNavigate('login')}
-                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-slate-200 font-bold text-sm rounded-lg transition-colors flex items-center gap-2 cursor-pointer border border-white/10"
-              >
-                <Lock className="w-4 h-4 text-amber-300" />
-                <span>Sign In (id: 1, 153, 151, 163)</span>
-              </button>
-            </div>
-
-            {/* Quick Tracking Search Bar */}
-            <div className="pt-3 max-w-lg">
-              <form onSubmit={handleQuickSubmit} className="flex rounded-lg overflow-hidden border border-slate-700 bg-slate-800/80 p-1 shadow-inner focus-within:border-amber-400">
-                <input
-                  type="text"
-                  value={quickCode}
-                  onChange={(e) => setQuickCode(e.target.value)}
-                  placeholder="Enter Tracking ID (e.g. CHA-2026-1049)"
-                  className="w-full bg-transparent px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-hidden uppercase font-mono"
-                />
+              {/* Action Row — 1 Primary CTA + 1 Portal Sign In (Tracking Bar right below) */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-[#0f1e36] text-xs sm:text-sm font-bold rounded transition-colors whitespace-nowrap cursor-pointer"
+                  onClick={() => onNavigate('register_admission')}
+                  className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-[#071120] font-bold text-sm rounded-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
                 >
-                  {t.heroCtaStatus}
+                  <span>{t.heroCtaApply}</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
-              </form>
-              <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400 font-mono">
-                <span>Try sample code:</span>
-                <button 
-                  type="button"
-                  onClick={() => onQuickTrack('CHA-2026-1049')}
-                  className="text-amber-300 hover:underline cursor-pointer"
+
+                <button
+                  onClick={() => onNavigate('login')}
+                  className="px-5 py-3.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/25 text-white font-semibold text-sm rounded-lg transition-colors flex items-center gap-2 cursor-pointer whitespace-nowrap"
                 >
-                  CHA-2026-1049
-                </button>
-                <span>·</span>
-                <button 
-                  type="button"
-                  onClick={() => onQuickTrack('CHA-2026-8812')}
-                  className="text-amber-300 hover:underline cursor-pointer"
-                >
-                  CHA-2026-8812
+                  <Lock className="w-4 h-4 text-amber-300" />
+                  <span>{t.navLogin}</span>
                 </button>
               </div>
-            </div>
 
-          </div>
-
-          {/* Institutional Crest Showcase */}
-          <div className="lg:col-span-5 flex flex-col items-center">
-            <div className="bg-[#172c4e]/95 border-2 border-amber-400/50 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md text-center w-full max-w-lg ring-4 ring-amber-500/10">
-              
-              <div className="relative mb-4 flex justify-center py-2">
-                <div className="relative p-3 bg-gradient-to-b from-white/10 to-transparent rounded-2xl">
-                  <img 
-                    src={CHILIMO_INFO.logoUrl} 
-                    alt="Chilimo Academy Crest Emblem" 
-                    className="w-64 h-64 sm:w-76 sm:h-76 md:w-80 md:h-80 object-contain drop-shadow-[0_20px_25px_rgba(0,0,0,0.6)] hover:scale-105 transition-all duration-300"
+              {/* Clean Application Tracking Lookup */}
+              <div className="pt-4 max-w-lg">
+                <form
+                  onSubmit={handleQuickSubmit}
+                  className="flex rounded-lg overflow-hidden border border-white/20 bg-[#0b172a]/85 backdrop-blur-md p-1 focus-within:border-amber-400 transition-colors"
+                >
+                  <input
+                    type="text"
+                    value={quickCode}
+                    onChange={(e) => setQuickCode(e.target.value)}
+                    placeholder={pickLang(currentLang, 'Koodii Galmee (fkn. CHA-2026-1049)', 'Tracking ID (e.g. CHA-2026-1049)', 'የምዝገባ መከታተያ ቁጥር (CHA-2026-1049)')}
+                    className="w-full bg-transparent px-3.5 py-2 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none uppercase font-mono"
                   />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-[#071120] text-xs font-bold rounded transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    {t.heroCtaStatus}
+                  </button>
+                </form>
+                <div className="flex items-center gap-2 mt-2 text-xs text-slate-300">
+                  <span>{pickLang(currentLang, 'Fakkeenya:', 'Sample tracking:', 'ምሳሌ ቁጥር:')}</span>
+                  <button
+                    type="button"
+                    onClick={() => onQuickTrack('CHA-2026-1049')}
+                    className="font-mono text-amber-300 hover:underline cursor-pointer"
+                  >
+                    CHA-2026-1049
+                  </button>
+                  <span aria-hidden="true">·</span>
+                  <button
+                    type="button"
+                    onClick={() => onQuickTrack('CHA-2026-8812')}
+                    className="font-mono text-amber-300 hover:underline cursor-pointer"
+                  >
+                    CHA-2026-8812
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <div className="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-bold uppercase tracking-wider mb-2">
-                Official Crest • Asii Dhaabbataa
+            {/* Right Crest Seal Card — Subtle Editorial Frame */}
+            <div className="hidden lg:flex lg:col-span-4 justify-end">
+              <div className="bg-[#0b172a]/80 backdrop-blur-md border border-white/15 rounded-2xl p-7 text-center w-full max-w-xs">
+                <img
+                  src={logoUrl}
+                  alt="Chilimo Academy Crest"
+                  className="w-40 h-40 mx-auto object-contain drop-shadow-xl mb-4"
+                />
+                <div className="text-xs text-amber-300 font-medium tracking-wide">
+                  Burayu, Oromia
+                </div>
+                <h2 className="font-serif text-xl font-bold text-white mt-1">
+                  {CHILIMO_INFO.name}
+                </h2>
+                <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                  KG 1–3 & Grades 1–8 · Afaan Oromoo, English & Amharic
+                </p>
               </div>
-
-              <h3 className="font-serif text-2xl sm:text-3xl font-black text-white tracking-tight">
-                {CHILIMO_INFO.name}
-              </h3>
-              <p className="text-amber-400 text-sm font-bold uppercase tracking-wider mt-1">
-                {CHILIMO_INFO.motto}
-              </p>
-              <p className="text-slate-200 text-xs sm:text-sm mt-2 leading-relaxed">
-                Kutaa 1-8 fi KG 1-3 • Burayu, Oromia, Ethiopia.
-              </p>
-
-              {/* Statistics Grid */}
-              <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-700/80 text-left">
-                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60">
-                  <div className="flex items-center gap-1.5 text-amber-400 mb-0.5">
-                    <Users className="w-4 h-4" />
-                    <span className="text-lg font-bold text-white">850+</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300">{t.heroStatStudents}</p>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60">
-                  <div className="flex items-center gap-1.5 text-emerald-400 mb-0.5">
-                    <Award className="w-4 h-4" />
-                    <span className="text-lg font-bold text-white">99%</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300">{t.heroStatPass}</p>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60">
-                  <div className="flex items-center gap-1.5 text-amber-400 mb-0.5">
-                    <GraduationCap className="w-4 h-4" />
-                    <span className="text-lg font-bold text-white">42+</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300">{t.heroStatTeachers}</p>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60">
-                  <div className="flex items-center gap-1.5 text-sky-400 mb-0.5">
-                    <Bus className="w-4 h-4" />
-                    <span className="text-lg font-bold text-white">6 Buses</span>
-                  </div>
-                  <p className="text-[11px] text-slate-300">{t.heroStatBuses}</p>
-                </div>
-              </div>
-
             </div>
           </div>
-
         </div>
       </div>
-    </div>
+
+      {/* Full-width Quantitative Proof Strip below Hero */}
+      <div className="relative z-10 bg-[#071120] border-t border-white/10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:divide-x md:divide-white/10">
+            <div className="md:pr-6">
+              <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums">850+</div>
+              <div className="text-xs text-slate-300 mt-1">{t.heroStatStudents}</div>
+            </div>
+            <div className="md:px-6">
+              <div className="text-2xl sm:text-3xl font-bold text-amber-400 tabular-nums">99%</div>
+              <div className="text-xs text-slate-300 mt-1">{t.heroStatPass}</div>
+            </div>
+            <div className="md:px-6">
+              <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums">42+</div>
+              <div className="text-xs text-slate-300 mt-1">{t.heroStatTeachers}</div>
+            </div>
+            <div className="md:pl-6">
+              <div className="text-2xl sm:text-3xl font-bold text-white tabular-nums">6</div>
+              <div className="text-xs text-slate-300 mt-1">{t.heroStatBuses}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 };

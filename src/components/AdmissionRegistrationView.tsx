@@ -1,20 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
-  Sparkles, 
   CheckCircle, 
   Copy, 
   Check, 
   Search, 
   Bus, 
-  School,
-  FileCheck2,
-  Calendar,
-  Phone
+  Landmark,
+  Lock,
+  Upload,
+  FileText,
+  X
 } from 'lucide-react';
-import { Language, ApplicationRecord } from '../types';
+import { Language, ApplicationRecord, PaymentMethodEAV, AdmissionFeeSettings, PaymentInfoSettings } from '../types';
 import { translations } from '../translations';
-import { submitGuestApplication, CHILIMO_INFO } from '../data/mockData';
+import {
+  submitGuestApplication,
+  CHILIMO_INFO,
+  getStoredPayments,
+  getStoredAdmissionFeeSettings,
+  getStoredPaymentInfoSettings,
+  getSchoolLogoUrl
+} from '../data/mockData';
+import { readAndCompressUpload } from '../utils/imageUpload';
+import { submitPublicApplicationToCloud } from '../lib/backupAndSync';
 
 interface AdmissionRegistrationViewProps {
   currentLang: Language;
@@ -28,6 +37,19 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
   onSuccess
 }) => {
   const t = translations[currentLang];
+  const [activeBanks, setActiveBanks] = useState<PaymentMethodEAV[]>(() => getStoredPayments().filter(p => p.active));
+  const [admissionSettings, setAdmissionSettings] = useState<AdmissionFeeSettings>(getStoredAdmissionFeeSettings);
+  const [paymentInfoSettings, setPaymentInfoSettings] = useState<PaymentInfoSettings>(getStoredPaymentInfoSettings);
+
+  useEffect(() => {
+    const sync = () => {
+      setActiveBanks(getStoredPayments().filter(p => p.active));
+      setAdmissionSettings(getStoredAdmissionFeeSettings());
+      setPaymentInfoSettings(getStoredPaymentInfoSettings());
+    };
+    window.addEventListener('chilimo:data-updated', sync);
+    return () => window.removeEventListener('chilimo:data-updated', sync);
+  }, []);
 
   const [studentName, setStudentName] = useState('');
   const [parentName, setParentName] = useState('');
@@ -38,14 +60,48 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
   const [address, setAddress] = useState('Burayu, Oromia');
   const [needBus, setNeedBus] = useState('yes');
   const [busRoutePref, setBusRoutePref] = useState('Burayu Gefersa Line');
+  const [selectedBankProvider, setSelectedBankProvider] = useState<string>(activeBanks[0]?.provider || '');
+  const [regFeeRef, setRegFeeRef] = useState('');
+  const [docDataUrl, setDocDataUrl] = useState('');
+  const [docFileName, setDocFileName] = useState('');
+  const [receiptDataUrl, setReceiptDataUrl] = useState('');
+  const [receiptFileName, setReceiptFileName] = useState('');
+  const [uploadError, setUploadError] = useState('');
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [generatedRecord, setGeneratedRecord] = useState<ApplicationRecord | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [copiedBankId, setCopiedBankId] = useState<string | null>(null);
+
+  const handleFileSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'doc' | 'receipt'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError('');
+    try {
+      const res = await readAndCompressUpload(file);
+      if (target === 'doc') {
+        setDocDataUrl(res.dataUrl);
+        setDocFileName(res.fileName);
+      } else {
+        setReceiptDataUrl(res.dataUrl);
+        setReceiptFileName(res.fileName);
+      }
+    } catch (err: any) {
+      setUploadError(err?.message || 'Upload failed.');
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentName || !phone) return;
+
+    const bankDetail = regFeeRef.trim()
+      ? ` Fee Bank: ${selectedBankProvider || 'N/A'} (Ref: ${regFeeRef.trim()}).`
+      : '';
+    const detailsText = `Parent: ${parentName}. DOB: ${birthDate}. Address: ${address}. Bus Transport: ${needBus === 'yes' ? busRoutePref : 'No'}.${bankDetail}`;
 
     const newRecord = submitGuestApplication({
       fullName: studentName,
@@ -53,7 +109,22 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
       phone: phone,
       applicantType: 'student',
       gradeOrSubject: gradeLevel,
-      details: `Parent: ${parentName}. DOB: ${birthDate}. Address: ${address}. Bus Transport: ${needBus === 'yes' ? busRoutePref : 'No'}.`
+      details: detailsText,
+      documentDataUrl: docDataUrl || undefined,
+      documentName: docFileName || undefined,
+      receiptImageDataUrl: receiptDataUrl || undefined,
+      receiptFileName: receiptFileName || undefined
+    });
+
+    submitPublicApplicationToCloud({
+      trackingCode: newRecord.id,
+      fullName: newRecord.fullName,
+      email: newRecord.email,
+      phone: newRecord.phone,
+      applicantType: newRecord.applicantType,
+      gradeOrSubject: newRecord.gradeOrSubject,
+      details: newRecord.details,
+      stage: newRecord.status
     });
 
     setGeneratedRecord(newRecord);
@@ -66,6 +137,12 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     }
+  };
+
+  const handleCopyBankAccount = (bank: PaymentMethodEAV) => {
+    navigator.clipboard.writeText(bank.accountNumber);
+    setCopiedBankId(bank.id);
+    setTimeout(() => setCopiedBankId(null), 2000);
   };
 
   return (
@@ -81,7 +158,30 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
           <span>{t.backToHome}</span>
         </button>
 
-        {isSubmitted && generatedRecord ? (
+        {!admissionSettings.admissionsOpen ? (
+          <div className="bg-white rounded-2xl border border-amber-300 p-8 sm:p-10 shadow-md text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
+              <Lock className="w-7 h-7" />
+            </div>
+            <h2 className="font-serif text-2xl font-bold text-[#0f1e36]">
+              Galmeen Yeroof Cufameera (Admissions Currently Closed)
+            </h2>
+            <p className="text-sm text-slate-700 max-w-lg mx-auto">
+              {currentLang === 'om' ? admissionSettings.closedMessageOm : admissionSettings.closedMessageEn}
+            </p>
+            <div className="text-xs font-mono font-bold text-amber-800">
+              {admissionSettings.academicYearLabel} · Tel: {CHILIMO_INFO.phone}
+            </div>
+            <div>
+              <button
+                onClick={onBack}
+                className="px-6 py-2.5 bg-[#0f1e36] text-white text-xs font-bold rounded-lg cursor-pointer"
+              >
+                {t.backToHome}
+              </button>
+            </div>
+          </div>
+        ) : isSubmitted && generatedRecord ? (
           /* SUCCESS SCREEN */
           <div className="bg-white rounded-2xl border border-amber-300 p-8 sm:p-10 shadow-md text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-5">
@@ -97,7 +197,7 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
             </p>
 
             {/* Generated Code Display Box */}
-            <div className="max-w-md mx-auto bg-[#0f1e36] text-white rounded-xl p-6 mb-8 text-center shadow-inner border border-amber-400/40">
+            <div className="max-w-md mx-auto bg-[#0f1e36] text-white rounded-xl p-6 mb-6 text-center shadow-inner border border-amber-400/40">
               <span className="text-xs uppercase tracking-widest text-amber-400 block mb-1 font-bold">
                 Chilimo Academy Admission Tracking Code
               </span>
@@ -114,6 +214,34 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
                 </button>
               </div>
             </div>
+
+            {activeBanks.length > 0 && (
+              <div className="max-w-lg mx-auto mb-6 text-left bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#0f1e36] mb-2.5">
+                  <Landmark className="w-4 h-4 text-amber-600" />
+                  <span>Lakkoofsa Baankii Mana Barumsaa (Official School Bank Accounts)</span>
+                </div>
+                <div className="space-y-2">
+                  {activeBanks.map((bank) => (
+                    <div key={bank.id} className="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 truncate">{bank.provider}</div>
+                        <div className="font-mono font-bold text-indigo-800">{bank.accountNumber}</div>
+                        <div className="text-[11px] text-slate-500 truncate">{bank.accountName}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyBankAccount(bank)}
+                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-bold cursor-pointer"
+                      >
+                        {copiedBankId === bank.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedBankId === bank.id ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row justify-center gap-3">
               <button
@@ -138,13 +266,13 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
             {/* Header */}
             <div className="bg-[#0f1e36] text-white p-6 sm:p-8 flex items-center gap-4 border-b border-slate-800">
               <img 
-                src={CHILIMO_INFO.logoUrl} 
+                src={getSchoolLogoUrl()} 
                 alt="Chilimo Logo" 
                 className="w-16 h-16 object-contain bg-white/10 p-1 rounded-xl"
               />
               <div>
                 <span className="text-xs uppercase tracking-widest text-amber-400 font-bold block">
-                  Chilimo Academy • {CHILIMO_INFO.grades}
+                  Chilimo Academy • {admissionSettings.academicYearLabel}
                 </span>
                 <h1 className="font-serif text-2xl font-black text-white mt-0.5">
                   Guest Student Admission Registration
@@ -313,6 +441,121 @@ export const AdmissionRegistrationView: React.FC<AdmissionRegistrationViewProps>
                     </select>
                   </div>
                 )}
+              </div>
+
+              {/* School Bank Accounts Configured by Admin */}
+              {activeBanks.length > 0 && (
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#0f1e36]">
+                      <Landmark className="w-4 h-4 text-indigo-700" />
+                      <span>Lakkoofsa Baankii Kaffaltii Galmee (Official School Bank Accounts)</span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-slate-500 font-mono">
+                      Tel: {paymentInfoSettings.bursarPhone}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    {currentLang === 'om' ? paymentInfoSettings.generalInstructionsOm : paymentInfoSettings.generalInstructionsEn}
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {activeBanks.map((bank) => {
+                      const isSelected = selectedBankProvider === bank.provider;
+                      return (
+                        <div
+                          key={bank.id}
+                          onClick={() => setSelectedBankProvider(bank.provider)}
+                          className={`p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-indigo-600 bg-indigo-50/70 ring-1 ring-indigo-500'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-bold text-slate-900 truncate">{bank.provider}</div>
+                              <div className="font-mono font-black text-indigo-800 text-sm mt-0.5 select-all">
+                                {bank.accountNumber}
+                              </div>
+                              <div className="text-[11px] text-slate-600 truncate">{bank.accountName}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyBankAccount(bank);
+                              }}
+                              className="shrink-0 inline-flex items-center gap-1 px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold cursor-pointer"
+                            >
+                              {copiedBankId === bank.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedBankId === bank.id ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
+                          {bank.instructions && (
+                            <p className="text-[10px] text-slate-500 mt-1.5 line-clamp-2">{bank.instructions}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Receipt / Bank Reference No. (Yoo kaffaltan - Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={regFeeRef}
+                      onChange={(e) => setRegFeeRef(e.target.value)}
+                      placeholder="e.g. FT26109X882 or Telebirr Ref (optional)"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Student Documents & Bank Slip Upload */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="text-xs font-bold text-[#0f1e36] flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-amber-600" />
+                  <span>Waraqaa Ragaa &amp; Nagahee Galmee Ol-kaayi (Upload Documents &amp; Slip - Optional)</span>
+                </div>
+                {uploadError && <div className="text-xs text-rose-600">{uploadError}</div>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="space-y-1.5">
+                    <label className="block font-semibold text-slate-700">
+                      Ragaa Dhalootaa / Transcript (Birth Cert / Card)
+                    </label>
+                    <label className="flex items-center gap-2 px-3 py-2 bg-white border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                      <Upload className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span className="truncate text-slate-600">{docFileName || 'Filadhu (JPG/PNG/PDF)'}</span>
+                      <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileSelect(e, 'doc')} className="hidden" />
+                    </label>
+                    {docFileName && (
+                      <div className="flex items-center justify-between text-[11px] text-emerald-700 font-semibold">
+                        <span className="truncate">{docFileName}</span>
+                        <button type="button" onClick={() => { setDocDataUrl(''); setDocFileName(''); }} className="text-rose-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block font-semibold text-slate-700">
+                      Suuraa Nagahee Kaffaltii Galmee (Payment Slip)
+                    </label>
+                    <label className="flex items-center gap-2 px-3 py-2 bg-white border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                      <Upload className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span className="truncate text-slate-600">{receiptFileName || 'Suuraa nagahee filadhu'}</span>
+                      <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileSelect(e, 'receipt')} className="hidden" />
+                    </label>
+                    {receiptFileName && (
+                      <div className="flex items-center justify-between text-[11px] text-emerald-700 font-semibold">
+                        <span className="truncate">{receiptFileName}</span>
+                        <button type="button" onClick={() => { setReceiptDataUrl(''); setReceiptFileName(''); }} className="text-rose-600 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Actions */}
